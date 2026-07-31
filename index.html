@@ -6,335 +6,163 @@
 <title>船舶实时追踪系统</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-:root{--bg:#f5f6f8;--bg1:#fff;--bg2:#f0f2f5;--tx1:#1a1d23;--tx2:#4a5568;--tx3:#8899aa;--bd:#dde4ed;--ac:#2563eb;--gr:#059669;--ye:#d97706;--rd:#dc2626;--pu:#7c3aed;--sh:0 1px 3px rgba(0,0,0,.06);--sh2:0 4px 12px rgba(0,0,0,.08);--ra:10px;--ra2:6px;--tr:.25s ease}
+:root{--bg:#eef1f5;--bg1:#fff;--bg2:#f3f5f8;--tx1:#1a1d23;--tx2:#4a5568;--tx3:#8899aa;--bd:#dde4ed;--ac:#2563eb;--gr:#059669;--ye:#d97706;--rd:#dc2626;--ra:10px;--ra2:6px;--sh:0 1px 3px rgba(0,0,0,.05);--sh2:0 4px 12px rgba(0,0,0,.07)}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;background:var(--bg);color:var(--tx1);height:100vh;overflow:hidden;font-size:15px}
 #app{display:flex;flex-direction:column;height:100vh}
-/* 水印置顶 */
-.watermark-top{text-align:center;padding:2px;font-size:10px;color:var(--tx3);background:var(--bg1);border-bottom:1px solid var(--bd);letter-spacing:.3px;z-index:2000}
-/* 顶栏 */
-.top-bar{display:flex;align-items:center;height:48px;padding:0 12px;background:var(--bg1);border-bottom:1px solid var(--bd);gap:8px;box-shadow:var(--sh)}
-.top-bar .logo{font-size:15px;font-weight:700;color:var(--ac);white-space:nowrap}
-.top-bar .dot{width:9px;height:9px;border-radius:50%;background:var(--rd);flex-shrink:0;transition:background var(--tr)}
-.top-bar .dot.ok{background:var(--gr)}
-.top-bar button{padding:5px 12px;border:1px solid var(--bd);background:var(--bg1);color:var(--tx2);border-radius:var(--ra2);cursor:pointer;font-size:12px;font-weight:500;transition:all var(--tr);font-family:inherit;white-space:nowrap}
-.top-bar button:hover{background:var(--bg2);border-color:var(--ac);color:var(--ac)}
-.top-bar button:active{transform:scale(.96)}
-.top-bar button.ac{background:var(--ac);color:#fff;border:none}
-.top-bar button.ac:hover{opacity:.9}
-.top-bar .info{font-size:12px;color:var(--tx2);white-space:nowrap}
-.top-bar .info b{color:var(--ac);font-weight:600}
-.top-bar .cd{font-size:12px;color:var(--tx3);font-variant-numeric:tabular-nums;min-width:90px}
-/* 标签栏 */
-.tabs{display:flex;gap:0;background:var(--bg1);border-bottom:1px solid var(--bd);padding:0 8px}
-.tab{padding:10px 16px;border:none;background:none;color:var(--tx2);cursor:pointer;font-size:13px;font-weight:500;font-family:inherit;border-bottom:2px solid transparent;transition:all var(--tr)}
-.tab:hover{color:var(--ac)}
-.tab.active{color:var(--ac);border-bottom-color:var(--ac)}
-/* 主区域 */
-.main{display:flex;flex:1;overflow:hidden;position:relative}
+.wm{text-align:center;padding:3px;font-size:10px;color:var(--tx3);background:var(--bg1);border-bottom:1px solid var(--bd)}
+.bar{display:flex;align-items:center;height:46px;padding:0 14px;background:var(--bg1);border-bottom:1px solid var(--bd);gap:10px;box-shadow:var(--sh)}
+.bar .logo{font-size:15px;font-weight:700;color:var(--ac)}
+.bar .dot{width:9px;height:9px;border-radius:50%;background:var(--rd);flex-shrink:0}
+.bar .dot.ok{background:var(--gr)}
+.bar .st{font-size:12px;color:var(--tx2)}
+.bar .st b{color:var(--ac)}
+.bar button{padding:6px 14px;border:1px solid var(--bd);background:var(--bg1);color:var(--tx2);border-radius:var(--ra2);cursor:pointer;font-size:12px;font-weight:500;transition:.2s;font-family:inherit;white-space:nowrap}
+.bar button:hover{background:var(--bg2);border-color:var(--ac);color:var(--ac)}
+.bar button:active{transform:scale(.96)}
+.bar button.bf{background:var(--ac);color:#fff;border:none;font-weight:600}
+.main{display:flex;flex:1;overflow:hidden}
 #map{flex:1;z-index:1}
-#map .overlay{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;background:var(--bg1);border:1px solid var(--bd);border-radius:16px;padding:4px 14px;font-size:12px;color:var(--tx2);pointer-events:none;box-shadow:var(--sh2)}
-#map .overlay b{color:var(--ac)}
-#map .lgd{position:absolute;bottom:12px;left:12px;z-index:1000;display:flex;gap:10px;background:var(--bg1);border:1px solid var(--bd);border-radius:14px;padding:4px 10px;font-size:10px;color:var(--tx2);box-shadow:var(--sh)}
-.ld{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px}
-.ld.c{background:var(--ac)}.ld.t{background:var(--ye)}.ld.f{background:var(--gr)}.ld.p{background:var(--pu)}
-/* 右侧面板 */
-.panel{width:380px;background:var(--bg1);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh)}
-.panel .ph{padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center}
-.panel .ph .bdg{font-size:11px;padding:2px 8px;border-radius:8px;background:var(--bg2);color:var(--tx2)}
-.list{flex:1;overflow-y:auto;padding:8px}
+#map .ol{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:var(--bg1);border:1px solid var(--bd);border-radius:14px;padding:4px 14px;font-size:12px;color:var(--tx2);pointer-events:none;box-shadow:var(--sh2)}
+#map .ol b{color:var(--ac)}
+#map .lg{position:absolute;bottom:10px;left:10px;z-index:1000;display:flex;gap:8px;background:var(--bg1);border:1px solid var(--bd);border-radius:12px;padding:3px 10px;font-size:10px;color:var(--tx2);box-shadow:var(--sh)}
+.lc{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:2px}
+.lc.a{background:var(--ac)}.lc.b{background:var(--ye)}.lc.c{background:var(--gr)}.lc.d{background:#7c3aed}
+.pn{width:380px;background:var(--bg1);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh)}
+.pn h2{padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center}
+.pn h2 .bdg{font-size:11px;padding:2px 8px;border-radius:8px;background:var(--bg2);color:var(--tx2)}
+.list{flex:1;overflow-y:auto;padding:6px 8px}
 .list::-webkit-scrollbar{width:3px}
 .list::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
-/* 面板容器 */
-.pp{display:none;flex-direction:column;flex:1;overflow:hidden}
-.pp.ac{display:flex}
-/* 船舶卡片 */
-.card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--ra);padding:12px;margin-bottom:7px;cursor:pointer;transition:all var(--tr);box-shadow:var(--sh);animation:su .35s ease-out}
-@keyframes su{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--ra);padding:11px;margin-bottom:6px;cursor:pointer;transition:.2s;box-shadow:var(--sh);animation:su .3s ease-out}
+@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fi{from{opacity:0}to{opacity:1}}
 .card:hover{transform:translateY(-1px);box-shadow:var(--sh2);border-color:var(--ac)}
 .card:active{transform:scale(.98)}
-.card.sel{border-color:var(--ac);background:#f0f4ff;box-shadow:0 0 0 2px rgba(37,99,235,.12)}
-.card .r1{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.card .nm{font-size:15px;font-weight:600}
-.card .st{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:500}
-.card .st.s0{background:#e8f0fe;color:var(--ac)}.card .st.s1{background:#fef3e2;color:var(--ye)}.card .st.s5{background:#e6f7ee;color:var(--gr)}
-.card .r2{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:12px;color:var(--tx3);margin-top:4px}
-.card .r2 s{color:var(--tx1);text-decoration:none;font-weight:500}
-.to{display:inline-block;background:#fef2f2;color:var(--rd);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px}
-/* 搜索/表单 */
-.sbox{display:flex;gap:6px;padding:10px}
-.sbox input{flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--ra2);font-size:14px;outline:none;font-family:inherit}
-.sbox input:focus{border-color:var(--ac)}
-.sbox button{padding:8px 16px;background:var(--ac);color:#fff;border:none;border-radius:var(--ra2);cursor:pointer;font-size:14px;font-weight:500;font-family:inherit}
-.ig{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;padding:8px 10px;font-size:13px}
-.ig label{color:var(--tx3);white-space:nowrap}
-.ig input{padding:7px 10px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--ra2);font-size:13px;outline:none;font-family:inherit}
-.ig input:focus{border-color:var(--ac)}
-.btn-sm{padding:6px 12px;border:1px solid var(--bd);background:var(--bg1);color:var(--tx2);border-radius:var(--ra2);cursor:pointer;font-size:12px;transition:all var(--tr);font-family:inherit}
-.btn-sm:hover{border-color:var(--ac);color:var(--ac)}
-.btn-sm.ac{background:var(--ac);color:#fff;border:none}
-.result{padding:10px;font-size:13px}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
-.statc{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--ra);padding:12px;text-align:center}
-.statc .v{font-size:22px;font-weight:700;color:var(--ac)}
-.statc .l{font-size:11px;color:var(--tx3);margin-top:2px}
-.chart-wrap{padding:10px}
-.chart-wrap h4{font-size:13px;color:var(--tx2);margin-bottom:8px}
-/* 弹窗 */
+.card.on{border-color:var(--ac);background:#f0f4ff}
+.card .l1{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.card .nm{font-size:14px;font-weight:600}
+.card .nm .en{font-size:11px;color:var(--tx3);font-weight:400;margin-left:4px}
+.card .st{font-size:10px;padding:1px 7px;border-radius:6px;font-weight:500}
+.card .st.go{background:#e8f0fe;color:var(--ac)}.card .st.s1{background:#fef3e2;color:var(--ye)}.card .st.bt{background:#e6f7ee;color:var(--gr)}
+.card .l2{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;font-size:11px;color:var(--tx3)}
+.card .l2 s{color:var(--tx1);text-decoration:none;font-weight:500}
+.to{display:inline-block;background:#fef2f2;color:var(--rd);font-size:9px;padding:1px 5px;border-radius:3px}
 .modal{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center}
-.modal.show{display:flex;animation:fi .2s}
+.modal.s{display:flex;animation:fi .2s}
 .modal .bg{position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}
-.modal .box{position:relative;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--ra);max-width:700px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.15);animation:mi .3s ease-out}
-@keyframes mi{from{opacity:0;transform:scale(.95) translateY(16px)}to{opacity:1;transform:scale(1) translateY(0)}}
-.modal .x{position:sticky;top:8px;float:right;width:30px;height:30px;border:none;background:var(--bg2);color:var(--tx2);border-radius:50%;cursor:pointer;font-size:16px;z-index:1;margin-right:12px;display:flex;align-items:center;justify-content:center;transition:all var(--tr)}
+.modal .bx{position:relative;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--ra);max-width:700px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.12);animation:mi .3s ease-out}
+@keyframes mi{from{opacity:0;transform:scale(.95) translateY(14px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal .x{position:sticky;top:8px;float:right;width:30px;height:30px;border:none;background:var(--bg2);color:var(--tx2);border-radius:50%;cursor:pointer;font-size:16px;z-index:1;margin-right:12px;display:flex;align-items:center;justify-content:center;transition:.2s}
 .modal .x:hover{background:#fee2e2;color:var(--rd)}
 .modal .bdy{padding:20px}
-.modal h2{font-size:19px;margin-bottom:2px}
-.modal .sub{color:var(--tx3);font-size:13px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--bd)}
-.dg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
-.di{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--ra2);padding:10px;transition:all var(--tr)}
-.di:hover{background:#e8ecf1}
-.di .lbl{font-size:10px;color:var(--tx3);margin-bottom:2px;text-transform:uppercase}
-.di .val{font-size:16px;font-weight:600;color:var(--tx1)}
-.di .val.hi{color:var(--ac);font-size:18px}
-.stitle{font-size:14px;font-weight:600;color:var(--tx2);margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--bd)}
-.toast-wrap{position:fixed;bottom:16px;right:16px;z-index:4000;display:flex;flex-direction:column;gap:6px}
-.toast{padding:10px 18px;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--ra2);font-size:13px;box-shadow:var(--sh2);animation:ti .35s}
-.toast.e{border-left:3px solid var(--rd)}.toast.o{border-left:3px solid var(--gr)}
-@keyframes ti{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
-/* Leaflet */
+.dg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.di{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--ra2);padding:9px}
+.di .lb{font-size:10px;color:var(--tx3);margin-bottom:2px}
+.di .vl{font-size:15px;font-weight:600}
+.di .vl.hi{color:var(--ac);font-size:17px}
+.stl{font-size:13px;font-weight:600;color:var(--tx2);margin:14px 0 7px;padding-bottom:3px;border-bottom:2px solid var(--bd)}
+#tkm{height:220px;border-radius:var(--ra);border:1px solid var(--bd);margin-top:8px}
+.btns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btns button{padding:7px 14px;border:1px solid var(--bd);background:var(--bg1);color:var(--tx2);border-radius:var(--ra2);cursor:pointer;font-size:12px;transition:.2s;font-family:inherit}
+.btns button:hover{background:var(--bg2);border-color:var(--ac);color:var(--ac)}
+.btns button.pri{background:var(--ac);color:#fff;border:none}
 .leaflet-container{background:#e8ecf1!important;font-family:inherit!important}
 .leaflet-control-zoom a{background:var(--bg1)!important;color:var(--tx1)!important;border:1px solid var(--bd)!important;border-radius:var(--ra2)!important}
 .leaflet-popup-content-wrapper{background:var(--bg1)!important;color:var(--tx1)!important;border:1px solid var(--bd)!important;border-radius:var(--ra)!important;box-shadow:var(--sh2)!important;font-family:inherit!important;font-size:13px!important}
 .leaflet-popup-tip{background:var(--bg1)!important}
 .leaflet-bar{border:1px solid var(--bd)!important;border-radius:var(--ra2)!important;box-shadow:var(--sh)!important}
-.leaflet-control-attribution{background:var(--bg1)!important;font-size:9px!important;color:var(--tx3)!important}
-@media(max-width:768px){.panel{width:100%;position:absolute;right:-100%;transition:right var(--tr)}.panel.open{right:0}}
 </style>
 </head>
 <body>
 <div id="app">
-<!-- 水印置顶 -->
-<div class="watermark-top">© 开发人: 李明谦 &nbsp;|&nbsp; 仅供测试使用 &nbsp;|&nbsp; 未经允许不得用于商业应用</div>
-
-<!-- 顶栏 -->
-<header class="top-bar">
-<div class="logo">⚓ 船舶追踪系统</div>
-<div class="dot" id="st-dot"></div>
-<span class="info">📍 <b id="clbl">31.97, 120.43</b> | 船舶: <b id="cntl">--</b> | <span id="tlbl">就绪</span></span>
-<span class="cd">⏱ <b id="cdl">--</b></span>
-<button onclick="refresh()" class="ac">🔄 刷新</button>
-<button onclick="toggleAuto()" id="abtn">⏸ 暂停</button>
+<div class="wm">© 开发人: 李明谦 &nbsp;|&nbsp; 仅供测试使用 &nbsp;|&nbsp; 未经允许不得用于商业应用</div>
+<header class="bar">
+<div class="logo">⚓ 船舶实时追踪</div>
+<div class="dot" id="sd"></div>
+<span class="st">📍 <b id="cl">31.97, 120.43</b> | 船舶: <b id="cnt">--</b> | <span id="tl">就绪</span></span>
+<input id="skw" placeholder="🔍 搜索船名/MMSI..." style="width:180px;padding:5px 10px;border:1px solid var(--bd);border-radius:var(--ra2);font-size:12px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')search()">
+<button onclick="search()">搜索</button>
+<button onclick="load()" class="bf">🔄 手动刷新</button>
 </header>
-
-<!-- 功能标签 -->
-<div class="tabs" id="tabs">
-<button class="tab active" data-tab="ships">🚢 船舶列表</button>
-<button class="tab" data-tab="dashboard">📊 仪表盘</button>
-<button class="tab" data-tab="search">🔍 搜索</button>
-<button class="tab" data-tab="route">🗺️ 航线</button>
-<button class="tab" data-tab="weather">🌊 气象</button>
-<button class="tab" data-tab="port">⚓ 港口</button>
-</div>
-
 <div class="main">
-<div id="map">
-<div class="overlay" id="movl">🎯 加载中...</div>
-<div class="lgd"><span><span class="ld c"></span>货船</span><span><span class="ld t"></span>油轮</span><span><span class="ld f"></span>渔船</span><span><span class="ld p"></span>客船</span></div>
-</div>
-
-<div class="panel">
-<!-- 船舶列表 -->
-<div class="pp ac" id="tab-ships"><div class="ph">🚢 船舶列表 <span class="bdg" id="pbdg">--</span></div><div class="list" id="slist"></div></div>
-<!-- 仪表盘 -->
-<div class="pp" id="tab-dashboard"><div class="ph">📊 实时仪表盘</div><div style="overflow-y:auto;flex:1"><div class="stats" id="stats"></div><div class="chart-wrap"><h4>船舶类型分布</h4><canvas id="tchart" height="160"></canvas></div></div></div>
-<!-- 搜索 -->
-<div class="pp" id="tab-search"><div class="ph">🔍 船舶搜索</div><div class="sbox"><input type="text" id="skw" placeholder="船名 / MMSI / IMO / 呼号..." onkeydown="if(event.key==='Enter')doSearch()"><button onclick="doSearch()">搜索</button></div><div class="result" id="sres"></div></div>
-<!-- 航线 -->
-<div class="pp" id="tab-route"><div class="ph">🗺️ 航线规划</div><div style="padding:10px;overflow-y:auto;flex:1"><div class="ig"><label>起点纬度</label><input type="number" id="rlat1" value="31.97" step="any"><label>起点经度</label><input type="number" id="rlng1" value="120.43" step="any"><label>终点纬度</label><input type="number" id="rlat2" value="1.35" step="any"><label>终点经度</label><input type="number" id="rlng2" value="103.82" step="any"></div><button class="btn-sm ac" onclick="planRoute()" style="margin:8px 10px">规划航线</button><div class="result" id="rres"></div></div></div>
-<!-- 气象 -->
-<div class="pp" id="tab-weather"><div class="ph">🌊 气象天气</div><div style="padding:10px;overflow-y:auto;flex:1"><div class="ig"><label>纬度</label><input type="number" id="wlat" value="31.97" step="any"><label>经度</label><input type="number" id="wlng" value="120.43" step="any"></div><button class="btn-sm ac" onclick="qWeather()" style="margin:8px 10px">查询气象</button><div class="result" id="wres"></div></div></div>
-<!-- 港口 -->
-<div class="pp" id="tab-port"><div class="ph">⚓ 港口查询</div><div class="sbox"><input type="text" id="pkw" value="上海" placeholder="港口名称..."><button onclick="searchPort()">搜索</button></div><div class="result" id="pres"></div></div>
+<div id="map"><div class="ol" id="ol">点击「手动刷新」加载船舶数据</div><div class="lg"><span class="lc a"></span>货船 <span class="lc b"></span>油轮 <span class="lc c"></span>渔船 <span class="lc d"></span>客船</div></div>
+<div class="pn"><h2>🚢 船舶列表 <span class="bdg" id="pb">--</span></h2><div class="list" id="sl"></div></div>
 </div>
 </div>
-</div>
-
-<!-- 弹窗 -->
-<div class="modal" id="md"><div class="bg"></div><div class="box"><button class="x" onclick="closeMd()">×</button><div class="bdy" id="mbdy"></div></div></div>
-<div class="toast-wrap" id="toasts"></div>
-
-<script src="js/api.js"></script>
+<div class="modal" id="md"><div class="bg"></div><div class="bx"><button class="x" onclick="cls()">&times;</button><div class="bdy" id="mb"></div></div></div>
 <script>
-// ==== 核心状态 ====
-const HOME={lat:31.97,lng:120.43}; // 张家港
-const KEY=ShipXYAPI.getKey();
-if(!KEY){showKeyPrompt();throw new Error('No Key');}
-let map,hm,allShips=[],selMmsi=null,rTimer=null,cTimer=null,autoR=true,cdSec=600;
-const TYPE_CN={0:'未知',30:'渔船',50:'引航船',60:'客船',70:'货船',71:'集装箱船',80:'油轮',81:'化学品船',82:'液化气船',90:'散货船',100:'杂货船',255:'未知'};
-const NAVI_CN={'0':'航行中','1':'锚泊','5':'靠泊','255':'未知'};
-const SC={'0':'s0','1':'s1','5':'s5'};
-
-// 高德地图瓦片（国内加载快）+ CartoDB备用
-const TILES=[
-  {name:'高德地图',url:'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',opt:{subdomains:'1234',maxZoom:18,attribution:'高德地图'}},
-  {name:'CartoDB',url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',opt:{subdomains:'abcd',maxZoom:20,attribution:'CartoDB'}}
-];
-let curTile=0;
+// Key已通过浏览器设置到localStorage
+let KEY=localStorage.getItem('shipxy_api_key')||localStorage.getItem('sk');
+if(!KEY){document.body.innerHTML='<div style="text-align:center;padding:60px;font-family:Microsoft YaHei,sans-serif"><h2>⚠ 需要API Key</h2><p style="color:#4a5568;margin-top:12px">请在浏览器控制台执行：</p><code style="background:#f3f5f8;padding:8px 16px;border-radius:6px;display:inline-block;margin-top:8px">localStorage.setItem("shipxy_api_key","你的Key")</code><p style="margin-top:12px"><button onclick="location.reload()" style="padding:8px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">刷新页面</button></p></div>';throw new Error('No Key');}
+const HOME={lat:31.97,lng:120.43};
+let map,hm,allShips=[],sel=null,apiCalls=0;
+const TP={0:'未知',30:'渔船',50:'引航船',60:'客船',70:'货船',71:'集装箱船',80:'油轮',81:'化学品船',82:'液化气船',90:'散货船',100:'杂货船'};
+const NS={'0':'航行中','1':'锚泊','5':'靠泊','255':'未知'};
+const SC={'0':'go','1':'s1','5':'bt'};
+const KWS=['zhangjiagang','taicang','nanton','jiangyin','nanjing','suzhou','shanghai','ningbo','yangtze'];
 
 function init(){
-  // 地图初始化
   map=L.map('map',{center:[HOME.lat,HOME.lng],zoom:10,zoomControl:true});
-  loadTile(0); // 先加载高德
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20}).addTo(map);
   L.control.scale({imperial:false,metric:true}).addTo(map);
-  const hi=L.divIcon({html:'<div style="width:20px;height:20px;background:#dc2626;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px rgba(220,38,38,.4)"></div>',iconSize:[20,20],iconAnchor:[10,10]});
+  const hi=L.divIcon({html:'<div style="width:20px;height:20px;background:#dc2626;border:3px solid #fff;border-radius:50%;box-shadow:0 0 10px rgba(220,38,38,.35)"></div>',iconSize:[20,20],iconAnchor:[10,10]});
   hm=L.marker([HOME.lat,HOME.lng],{icon:hi}).addTo(map).bindPopup('<b>📍 张家港保税区</b>');
-  map.on('mousemove',e=>document.getElementById('clbl').textContent=e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4));
-  // 标签切换
-  document.getElementById('tabs').addEventListener('click',e=>{
-    const t=e.target.closest('.tab');if(!t)return;
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
-    document.querySelectorAll('.pp').forEach(x=>x.classList.remove('ac'));
-    const p=document.getElementById('tab-'+t.dataset.tab);if(p)p.classList.add('ac');
-    if(t.dataset.tab==='dashboard')updateDash();
-  });
-  // 地图点击切换瓦片
-  map.on('dblclick',()=>{curTile=(curTile+1)%TILES.length;loadTile(curTile);toast('切换: '+TILES[curTile].name,'o');});
-  refresh();rTimer=setInterval(()=>{if(autoR)refresh();},600000);startCd();
+  map.on('mousemove',e=>document.getElementById('cl').textContent=e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4));
+  load();
 }
 
-function loadTile(i){
-  map.eachLayer(l=>{if(l instanceof L.TileLayer)map.removeLayer(l);});
-  L.tileLayer(TILES[i].url,TILES[i].opt).addTo(map);
-}
-
-function startCd(){cdSec=600;updateCd();if(cTimer)clearInterval(cTimer);cTimer=setInterval(()=>{cdSec--;if(cdSec<=0)cdSec=600;updateCd();},1000);}
-function updateCd(){const m=Math.floor(cdSec/60),s=cdSec%60;document.getElementById('cdl').textContent=m+'分'+String(s).padStart(2,'0')+'秒';}
-
-async function refresh(){
-  document.getElementById('tlbl').textContent='查询中...';document.getElementById('st-dot').className='dot';cdSec=600;updateCd();
+async function load(){
+  document.getElementById('tl').textContent='查询中...';document.getElementById('sd').className='dot';apiCalls=0;
   const discovered=[];
-  // 搜索
-  for(const kw of ['zhangjiagang','zhangjiag','zhangjg','张家港']){
-    if(discovered.length>=15)break;
-    try{const r=await ft(`https://api.shipxy.com/apicall/v3/SearchShip?key=${KEY}&keywords=${kw}&max=8`,8000);if(!r)continue;const d=await r.json();if(d.status===0&&d.data)for(const s of d.data){if(!discovered.find(x=>x.mmsi===s.mmsi))discovered.push(s);}}catch(e){}
-  }
-  if(discovered.length===0){document.getElementById('tlbl').textContent='搜索超时';document.getElementById('st-dot').className='dot';document.getElementById('slist').innerHTML='<div style="text-align:center;padding:40px;color:#8899aa">⏳ 获取数据已超时<br><small>API查询次数今日已用尽</small></div>';return;}
-  allShips=discovered.map(s=>({...s,_to:true,lat:null,lng:null,sog:null,cog:null,navistat:null,dest:null,eta:null,length:null,width:null,draught:null}));
-  updateMap();updateList();
-  // 获取位置
-  let ok=0;for(const s of discovered.slice(0,12)){try{const r=await ft(`https://api.shipxy.com/apicall/v3/GetSingleShip?key=${KEY}&mmsi=${s.mmsi}`,8000);if(!r)continue;const d=await r.json();if(d.status===0&&d.data){const idx=allShips.findIndex(x=>String(x.mmsi)===String(s.mmsi));if(idx>=0){allShips[idx]={...allShips[idx],...d.data,_to:false};ok++;}}}catch(e){}}
-  const target=ok>0?allShips.filter(s=>!s._to):allShips;
-  allShips=target;updateMap();updateList();updateDash();
-  document.getElementById('tlbl').textContent=new Date().toLocaleTimeString('zh-CN');
-  document.getElementById('st-dot').className=ok>0?'dot ok':'dot';
-  document.getElementById('cntl').textContent=ok>0?target.filter(s=>!s._to).length:'--';
-  document.getElementById('movl').innerHTML='🎯 船舶: <b>'+(ok>0?target.filter(s=>!s._to).length:'--')+'</b> 艘 | 双击地图切换瓦片 | 点击船舶看详情';
-  startCd();
+  for(const kw of KWS){if(apiCalls>=9)break;apiCalls++;try{const r=await fetch(`https://api.shipxy.com/apicall/v3/SearchShip?key=${KEY}&keywords=${kw}&max=10`);const d=await r.json();if(d.status===0&&d.data)for(const s of d.data){if(!discovered.find(x=>x.mmsi===s.mmsi))discovered.push(s);}}catch(e){}}
+  if(discovered.length===0){document.getElementById('sl').innerHTML='<div style="text-align:center;padding:50px;color:var(--tx3)">📭 搜索无结果</div>';document.getElementById('tl').textContent='无数据';return;}
+  allShips=discovered.map(s=>({...s,_ok:false}));
+  for(const s of discovered.slice(0,20)){if(apiCalls>=40)break;apiCalls++;try{const r=await fetch(`https://api.shipxy.com/apicall/v3/GetSingleShip?key=${KEY}&mmsi=${s.mmsi}`);const d=await r.json();if(d.status===0&&d.data){const idx=allShips.findIndex(x=>String(x.mmsi)===String(s.mmsi));if(idx>=0)allShips[idx]={...allShips[idx],...d.data,_ok:true};}}catch(e){}}
+  render();
+  document.getElementById('tl').textContent=new Date().toLocaleTimeString('zh-CN')+' ('+apiCalls+'次)';
+  document.getElementById('sd').className=allShips.some(s=>s._ok)?'dot ok':'dot';
+  document.getElementById('cnt').textContent=allShips.length;
+  document.getElementById('ol').innerHTML='船舶: <b>'+allShips.filter(s=>s._ok).length+'</b>/'+allShips.length+' 艘有位置 | 点击船舶看详情';
 }
 
-function ft(url,ms){return new Promise(r=>{const t=setTimeout(()=>r(null),ms);fetch(url).then(x=>{clearTimeout(t);r(x)}).catch(()=>{clearTimeout(t);r(null)});});}
-
-// 地图标记
-function updateMap(){
+function render(){
   document.querySelectorAll('.sm').forEach(el=>map.removeLayer(el));
   const cs={70:'#2563eb',71:'#2563eb',80:'#d97706',81:'#d97706',82:'#d97706',30:'#059669',60:'#7c3aed',90:'#64748b',100:'#2563eb',default:'#2563eb'};
-  allShips.filter(s=>s.lat&&s.lng).forEach(s=>{
-    const c=cs[s.ship_type]||cs.default;
-    const nm=s.ship_cnname||s.ship_name||String(s.mmsi);
-    const ic=L.divIcon({html:`<div style="position:relative"><div style="width:14px;height:14px;background:${c};border:2px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.2)"></div><div style="position:absolute;top:-15px;left:50%;transform:translateX(-50%);background:#fff;color:${c};font-size:10px;font-weight:600;white-space:nowrap;padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.1);max-width:100px;overflow:hidden;text-overflow:ellipsis">${nm.length>8?nm.slice(0,8)+'..':nm}</div></div>`,className:'sm',iconSize:[14,14],iconAnchor:[7,7]});
-    const m=L.marker([s.lat,s.lng],{icon:ic}).addTo(map);m.on('click',()=>showDetail(s.mmsi));
-  });
+  allShips.filter(s=>s._ok&&s.lat&&s.lng).forEach(s=>{const c=cs[s.ship_type]||cs.default;const nm=s.ship_cnname||s.ship_name||String(s.mmsi);const ic=L.divIcon({html:`<div style="position:relative"><div style="width:14px;height:14px;background:${c};border:2px solid #fff;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,.2)"></div><div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:#fff;color:${c};font-size:10px;font-weight:600;white-space:nowrap;padding:1px 5px;border-radius:3px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${nm.slice(0,8)}</div></div>`,className:'sm',iconSize:[14,14],iconAnchor:[7,7]});const m=L.marker([s.lat,s.lng],{icon:ic}).addTo(map);m.on('click',()=>detail(s.mmsi));});
+  const ok=allShips.filter(s=>s._ok).length;
+  document.getElementById('pb').textContent=ok+'/'+allShips.length;
+  document.getElementById('sl').innerHTML=allShips.map((s,i)=>{const cn=s.ship_cnname||'',en=s.ship_name||'未知',dn=cn||en;const sk=s._ok,st=SC[s.navistat]||'go',nv=sk?NS[s.navistat]||'--':'--';return`<div class="card${sel===String(s.mmsi)?' on':''}" onclick="detail(${s.mmsi})" style="animation-delay:${i*.03}s"><div class="l1"><div class="nm">${dn}${!sk?'<span class="to">无位置</span>':''}${cn&&en!==cn?`<span class="en">${en}</span>`:''}</div><div class="st ${st}">${nv}</div></div><div class="l2"><div>MMSI:<s>${s.mmsi}</s></div><div>类型:<s>${TP[s.ship_type]||s.ship_type}</s></div><div>航速:<s>${sk?(s.sog===-1?'--':s.sog?.toFixed(1)+'节'):'--'}</s></div><div>航向:<s>${sk?(s.cog===-1?'--':s.cog?.toFixed(0)+'°'):'--'}</s></div>${sk&&s.dest?`<div style="grid-column:1/-1">🎯:<s style="color:#059669">${s.dest}</s></div>`:''}${sk&&s.eta?`<div style="grid-column:1/-1">ETA:<s style="color:#d97706">${s.eta}</s></div>`:''}</div></div>`;}).join('');
 }
 
-// 船舶列表
-function updateList(){
-  const el=document.getElementById('slist'),wp=allShips.filter(s=>!s._to).length;
-  document.getElementById('pbdg').textContent=allShips.length+'艘'+(wp>0?' ('+wp+'有位置)':'');
-  if(allShips.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:#8899aa">暂无船舶数据</div>';return;}
-  el.innerHTML=allShips.map((s,i)=>{
-    const cn=s.ship_cnname||'',en=s.ship_name||'未知',dn=cn||en,hp=!s._to;
-    const st=SC[s.navistat]||'s0',nav=hp?(NAVI_CN[s.navistat]||'--'):'--';
-    return`<div class="card${selMmsi===String(s.mmsi)?' sel':''}" onclick="showDetail(${s.mmsi})" style="animation-delay:${i*.04}s">
-      <div class="r1"><div class="nm">${dn}${!hp?'<span class="to">超时</span>':''}</div><div class="st ${st}">${nav}</div></div>
-      ${cn&&en!==cn?`<div style="font-size:12px;color:#8899aa">${en}</div>`:''}
-      <div class="r2"><div>MMSI:<s>${s.mmsi}</s></div><div>类型:<s>${TYPE_CN[s.ship_type]||s.ship_type}</s></div>
-      <div>航速:<s>${hp?(s.sog===-1?'--':(s.sog?.toFixed(1)||'--')+'节'):'超时'}</s></div><div>航向:<s>${hp?(s.cog===-1?'--':(s.cog?.toFixed(0)||'--')+'°'):'超时'}</s></div>
-      ${hp?`<div style="grid-column:1/-1">🎯:<s style="color:#059669">${s.dest||'--'}</s></div>`:''}
-      ${hp&&s.eta?`<div style="grid-column:1/-1">ETA:<s style="color:#d97706">${s.eta}</s></div>`:''}
-      <div style="grid-column:1/-1;font-size:10px;color:#8899aa">${s.last_time||'--'}</div></div></div>`;}).join('');
-}
-
-// 仪表盘
-function updateDash(){
-  const wp=allShips.filter(s=>!s._to),total=allShips.length;
-  document.getElementById('stats').innerHTML=`<div class="statc"><div class="v">${total}</div><div class="l">搜索到船舶</div></div><div class="statc"><div class="v">${wp.length}</div><div class="l">有位置数据</div></div><div class="statc"><div class="v">${wp.filter(s=>s.navistat===0).length}</div><div class="l">航行中</div></div><div class="statc"><div class="v">${wp.filter(s=>s.navistat===5).length}</div><div class="l">靠泊</div></div>`;
-  const c=document.getElementById('tchart');if(!c)return;if(c._ch)c._ch.destroy();
-  const tc={};wp.forEach(s=>{const t=s.ship_type||0;tc[t]=(tc[t]||0)+1;});
-  c._ch=new Chart(c,{type:'doughnut',data:{labels:Object.keys(tc).map(t=>TYPE_CN[t]||t),datasets:[{data:Object.values(tc),backgroundColor:['#2563eb','#d97706','#059669','#7c3aed','#64748b'],borderColor:'#fff',borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:8,font:{size:10},usePointStyle:true}}}}});
-}
-
-// 详情弹窗
-async function showDetail(mmsi){
-  selMmsi=String(mmsi);updateList();const s=allShips.find(x=>String(x.mmsi)===selMmsi);if(!s)return;
+async function detail(mmsi){
+  sel=String(mmsi);render();const s=allShips.find(x=>String(x.mmsi)===sel);if(!s)return;
   if(s.lat&&s.lng)map.flyTo([s.lat,s.lng],11,{duration:.7});
-  let ar=null,at=false,rg=null,rt=false;
-  try{const r=await ft(`https://api.shipxy.com/apicall/v3/GetShipArchives?key=${KEY}&mmsi=${mmsi}`,8000);if(r){const d=await r.json();if(d.status===0&&d.data)ar=d.data[0]||null;}else at=true;}catch(e){}
-  try{const r=await ft(`https://api.shipxy.com/apicall/v3/GetShipRegistry?key=${KEY}&mmsi=${mmsi}`,5000);if(r){const d=await r.json();if(d.status===0&&d.data)rg=d.data;}else rt=true;}catch(e){}
-  const hp=!s._to,cn=s.ship_cnname||'',en=s.ship_name||'未知',dn=cn||en;
-  let ah='';
-  if(at)ah='<div style="padding:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;text-align:center;color:#dc2626;margin-top:12px">📋 档案数据获取超时</div>';
-  else if(ar)ah=`<div class="stitle">📋 船舶档案与运营方（货主）</div><div class="dg">
-    <div class="di"><div class="lbl">运营方（货主）</div><div class="val" style="font-size:14px">${ar.operator_company||'--'}</div></div>
-    <div class="di"><div class="lbl">注册所有方</div><div class="val" style="font-size:14px">${ar.registered_owner||'--'}</div></div>
-    <div class="di"><div class="lbl">船舶类型</div><div class="val">${ar.ship_type||TYPE_CN[s.ship_type]}</div></div>
-    <div class="di"><div class="lbl">总吨/载重吨</div><div class="val">${ar.gross_tonnage?.toLocaleString()||'--'}/${ar.deadweight?.toLocaleString()||'--'}</div></div>
-    <div class="di"><div class="lbl">TEU</div><div class="val hi">${ar.teu?.toLocaleString()||'--'}</div></div>
-    <div class="di"><div class="lbl">建造日期/国家</div><div class="val">${ar.build_date||'--'}/${ar.build_country||'--'}</div></div>
-  </div>`;
-  document.getElementById('mbdy').innerHTML=`<h2>🚢 ${dn}${cn&&en!==cn?` <small style="color:#8899aa;font-size:14px;font-weight:400">${en}</small>`:''}</h2>
-  <div class="sub">MMSI:${s.mmsi} | IMO:${s.imo||'--'} | 呼号:${s.call_sign||'--'} | ${TYPE_CN[s.ship_type]||s.ship_type}</div>
-  <div class="stitle">📍 实时动态</div><div class="dg">
-    <div class="di"><div class="lbl">纬度</div><div class="val hi">${hp?s.lat?.toFixed(4):'超时'}</div></div>
-    <div class="di"><div class="lbl">经度</div><div class="val hi">${hp?s.lng?.toFixed(4):'超时'}</div></div>
-    <div class="di"><div class="lbl">航速</div><div class="val">${hp?(s.sog===-1?'无效':(s.sog?.toFixed(1)||'--')+'节'):'超时'}</div></div>
-    <div class="di"><div class="lbl">航向</div><div class="val">${hp?(s.cog===-1?'无效':(s.cog?.toFixed(1)||'--')+'°'):'超时'}</div></div>
-    <div class="di"><div class="lbl">航行状态</div><div class="val">${hp?(NAVI_CN[s.navistat]||'--'):'超时'}</div></div>
-    <div class="di"><div class="lbl">船籍</div><div class="val">${rt?'超时':rg?.registry||'--'}</div></div>
-    <div class="di"><div class="lbl">目的地</div><div class="val" style="color:#059669">${hp?(s.dest||'--'):'超时'}</div></div>
-    <div class="di"><div class="lbl">ETA</div><div class="val" style="color:#d97706">${hp&&s.eta?String(s.eta):'--'}</div></div>
-    <div class="di"><div class="lbl">船长/宽</div><div class="val">${hp?(s.length||'--')+'/'+(s.width||'--')+'m':'超时'}</div></div>
-    <div class="di"><div class="lbl">吃水</div><div class="val">${hp&&s.draught!=null?s.draught.toFixed(1)+'m':'--'}</div></div>
-    <div class="di"><div class="lbl">数据源</div><div class="val">${s.data_source===0?'AIS岸基':'AIS卫星'}</div></div>
-    <div class="di"><div class="lbl">更新</div><div class="val" style="font-size:12px">${s.last_time||'--'}</div></div>
-  </div>${ah}
-  <div style="margin-top:12px;display:flex;gap:8px"><button onclick="closeMd()" class="btn-sm ac">关闭</button>${hp&&s.lat?`<button onclick="map.flyTo([${s.lat},${s.lng}],14);closeMd()" class="btn-sm">📍 地图定位</button>`:''}</div>`;
-  document.getElementById('md').classList.add('show');
+  let ar=null,arOk=false,rg=null,rgOk=false,tk=null,tkOk=false;
+  try{const r=await fetch(`https://api.shipxy.com/apicall/v3/GetShipArchives?key=${KEY}&mmsi=${mmsi}`);const d=await r.json();if(d.status===0&&d.data)ar=d.data[0]||null;arOk=true;}catch(e){}
+  try{const r=await fetch(`https://api.shipxy.com/apicall/v3/GetShipRegistry?key=${KEY}&mmsi=${mmsi}`);const d=await r.json();if(d.status===0&&d.data)rg=d.data;rgOk=true;}catch(e){}
+  try{const r=await fetch(`https://api.shipxy.com/apicall/v3/GetShipTrack?key=${KEY}&mmsi=${mmsi}`);const d=await r.json();if(d.status===0&&d.data)tk=d.data;tkOk=true;}catch(e){}
+  const sk=s._ok,cn=s.ship_cnname||'',en=s.ship_name||'未知',dn=cn||en,tcn=TP[s.ship_type]||s.ship_type;
+  let ah='';if(!arOk)ah='<div style="padding:12px;background:#fef2f2;border-radius:8px;color:var(--rd);text-align:center;margin-top:10px">📋 档案查询失败</div>';
+  else if(ar)ah=`<div class="stl">📋 船舶档案与运营信息</div><div class="dg"><div class="di"><div class="lb">运营方(货物承运人)</div><div class="vl" style="font-size:13px">${ar.operator_company||'--'}</div></div><div class="di"><div class="lb">注册所有方(船东)</div><div class="vl" style="font-size:13px">${ar.registered_owner||'--'}</div></div><div class="di"><div class="lb">船舶类型</div><div class="vl">${ar.ship_type||tcn}</div></div><div class="di"><div class="lb">总吨/载重吨</div><div class="vl">${ar.gross_tonnage?.toLocaleString()||'--'}/${ar.deadweight?.toLocaleString()||'--'}</div></div><div class="di"><div class="lb">TEU(集装箱)</div><div class="vl hi">${ar.teu?.toLocaleString()||'--'}</div></div></div>`;
+  let th='';if(!tkOk)th='<div style="padding:12px;background:#fef2f2;border-radius:8px;color:var(--rd);text-align:center;margin-top:10px">🛣️ 轨迹查询失败</div>';
+  else if(tk&&tk.length>0)th=`<div class="stl">🛣️ 历史航线轨迹 (${tk.length}点)</div><div id="tkm"></div>`;
+  document.getElementById('mb').innerHTML=`<h2>🚢 ${dn}${cn&&en!==cn?` <small style="color:var(--tx3);font-size:13px;font-weight:400">${en}</small>`:''}</h2><div class="sub">MMSI:${s.mmsi} | IMO:${s.imo||'--'} | 呼号:${s.call_sign||'--'} | ${tcn}${rgOk&&rg?` | 船籍:${rg.registry}`:''}</div><div class="stl">📍 实时动态</div><div class="dg"><div class="di"><div class="lb">纬度</div><div class="vl hi">${sk?s.lat?.toFixed(4):'--'}</div></div><div class="di"><div class="lb">经度</div><div class="vl hi">${sk?s.lng?.toFixed(4):'--'}</div></div><div class="di"><div class="lb">航速SOG</div><div class="vl">${sk?(s.sog===-1?'无效':s.sog?.toFixed(1)+'节'):'--'}</div></div><div class="di"><div class="lb">航迹向COG</div><div class="vl">${sk?(s.cog===-1?'无效':s.cog?.toFixed(0)+'°'):'--'}</div></div><div class="di"><div class="lb">航行状态</div><div class="vl">${sk?NS[s.navistat]||'--':'--'}</div></div><div class="di"><div class="lb">🎯目的地</div><div class="vl" style="color:var(--gr)">${sk?(s.dest||'--'):'--'}</div></div><div class="di"><div class="lb">ETA预计到港</div><div class="vl" style="color:var(--ye)">${sk&&s.eta?s.eta:'--'}</div></div><div class="di"><div class="lb">船长/船宽</div><div class="vl">${sk?(s.length||'--')+'/'+(s.width||'--')+'m':'--'}</div></div><div class="di"><div class="lb">吃水</div><div class="vl">${sk&&s.draught!=null?s.draught.toFixed(1)+'m':'--'}</div></div><div class="di"><div class="lb">数据源</div><div class="vl">${s.data_source===0?'AIS岸基':'AIS卫星'}</div></div><div class="di"><div class="lb">最后更新</div><div class="vl" style="font-size:11px">${s.last_time||'--'}</div></div></div>${ah}${th}<div class="btns"><button class="pri" onclick="cls()">关闭</button>${sk&&s.lat?`<button onclick="map.flyTo([${s.lat},${s.lng}],14);cls()">📍 地图定位</button>`:''}</div>`;
+  document.getElementById('md').classList.add('s');
+  if(tk&&tk.length>0)setTimeout(()=>{const e=document.getElementById('tkm');if(!e)return;const tm=L.map(e,{zoomControl:true,attributionControl:false});L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(tm);const ll=tk.map(p=>[p.lat,p.lng]);L.polyline(ll,{color:'#2563eb',weight:3,opacity:.8}).addTo(tm);if(ll.length){L.circleMarker(ll[0],{radius:6,color:'#059669',fillOpacity:.8}).addTo(tm);L.circleMarker(ll[ll.length-1],{radius:6,color:'#dc2626',fillOpacity:.8}).addTo(tm);tm.fitBounds(L.latLngBounds(ll),{padding:[15,15]});}},300);
 }
-function closeMd(){document.getElementById('md').classList.remove('show');}
 
-// 搜索
-async function doSearch(){const kw=document.getElementById('skw').value.trim();if(!kw)return toast('输入关键字','e');const el=document.getElementById('sres');el.innerHTML='搜索中...';try{const r=await fetch(`https://api.shipxy.com/apicall/v3/SearchShip?key=${KEY}&keywords=${encodeURIComponent(kw)}&max=10`);const d=await r.json();if(d.status===0&&d.data?.length){el.innerHTML=d.data.map(s=>`<div class="card" onclick="searchAndShow(${s.mmsi})"><div class="r1"><div class="nm">${s.ship_cnname||s.ship_name||s.mmsi}</div></div><div class="r2"><div>MMSI:<s>${s.mmsi}</s></div><div>IMO:<s>${s.imo||'--'}</s></div><div>呼号:<s>${s.call_sign||'--'}</s></div><div>匹配:<s>${['','船名','呼号','MMSI','','IMO'][s.match_type]||'--'}</s></div></div></div>`).join('');}else el.innerHTML='未找到';}catch(e){el.innerHTML='搜索失败';}}
-async function searchAndShow(mmsi){try{const r=await fetch(`https://api.shipxy.com/apicall/v3/GetSingleShip?key=${KEY}&mmsi=${mmsi}`);const d=await r.json();if(d.status===0&&d.data){const idx=allShips.findIndex(s=>String(s.mmsi)===String(mmsi));if(idx>=0)allShips[idx]={...allShips[idx],...d.data,_to:false};else allShips.push({...d.data,_to:false});updateMap();updateList();showDetail(mmsi);}}catch(e){toast('获取位置失败','e');}}
+async function search(){
+  const kw=document.getElementById('skw').value.trim();if(!kw)return;
+  document.getElementById('tl').textContent='搜索中...';
+  try{const r=await fetch(`https://api.shipxy.com/apicall/v3/SearchShip?key=${KEY}&keywords=${encodeURIComponent(kw)}&max=10`);const d=await r.json();
+  if(d.status===0&&d.data?.length){const ms=d.data.map(s=>s.mmsi).join(',');const r2=await fetch(`https://api.shipxy.com/apicall/v3/GetManyShip?key=${KEY}&mmsis=${ms}`);const d2=await r2.json();
+  if(d2.status===0&&d2.data){d2.data.forEach(ns=>{const idx=allShips.findIndex(x=>String(x.mmsi)===String(ns.mmsi));if(idx>=0)allShips[idx]={...allShips[idx],...ns,_ok:true};else allShips.push({...ns,_ok:true});});render();if(d2.data.length===1)detail(d2.data[0].mmsi);}}else{document.getElementById('tl').textContent='未找到';}}catch(e){}
+  document.getElementById('tl').textContent=new Date().toLocaleTimeString('zh-CN');
+}
 
-// 航线
-async function planRoute(){const l1=parseFloat(document.getElementById('rlat1').value)||31.97,g1=parseFloat(document.getElementById('rlng1').value)||120.43,l2=parseFloat(document.getElementById('rlat2').value)||1.35,g2=parseFloat(document.getElementById('rlng2').value)||103.82;const el=document.getElementById('rres');el.innerHTML='规划中...';try{const r=await fetch(`https://api.shipxy.com/apicall/v3/RouteByPoints?key=${KEY}&lat1=${l1}&lng1=${g1}&lat2=${l2}&lng2=${g2}`);const d=await r.json();if(d.status===0&&d.data){el.innerHTML=`<div class="statc"><div class="v">${d.data.distance_nm?.toFixed(0)||'--'}</div><div class="l">海里</div></div>`;if(d.data.waypoints)drawRoute(d.data.waypoints);}else el.innerHTML='规划失败';}catch(e){el.innerHTML='获取超时';}}
-function drawRoute(wps){const ll=wps.map(w=>[w.lat,w.lng]);L.polyline(ll,{color:'#2563eb',weight:3,opacity:.7}).addTo(map);if(ll.length){L.circleMarker(ll[0],{radius:6,color:'#059669',fillOpacity:.8}).addTo(map);L.circleMarker(ll[ll.length-1],{radius:6,color:'#dc2626',fillOpacity:.8}).addTo(map);map.fitBounds(L.latLngBounds(ll),{padding:[30,30]});}}
-
-// 气象
-async function qWeather(){const lat=parseFloat(document.getElementById('wlat').value)||31.97,lng=parseFloat(document.getElementById('wlng').value)||120.43;const el=document.getElementById('wres');el.innerHTML='查询中...';try{const r=await fetch(`https://api.shipxy.com/apicall/v3/GetPointWeather?key=${KEY}&lat=${lat}&lng=${lng}`);const d=await r.json();if(d.status===0&&d.data){const w=d.data;el.innerHTML=`<div class="dg"><div class="di"><div class="lbl">温度</div><div class="val hi">${w.temperature?.toFixed(1)||'--'}°C</div></div><div class="di"><div class="lbl">湿度</div><div class="val">${w.humidity?.toFixed(0)||'--'}%</div></div><div class="di"><div class="lbl">风速</div><div class="val">${w.wind_speed?.toFixed(1)||'--'}m/s</div></div><div class="di"><div class="lbl">风向</div><div class="val">${w.wind_direction?.toFixed(0)||'--'}°</div></div><div class="di"><div class="lbl">浪高</div><div class="val">${w.wave_height?.toFixed(1)||'--'}m</div></div><div class="di"><div class="lbl">气压</div><div class="val">${w.pressure?.toFixed(0)||'--'}hPa</div></div></div>`;}else el.innerHTML='查询失败';}catch(e){el.innerHTML='获取超时';}}
-
-// 港口
-async function searchPort(){const kw=document.getElementById('pkw').value.trim();if(!kw)return;const el=document.getElementById('pres');el.innerHTML='搜索中...';try{const r=await fetch(`https://api.shipxy.com/apicall/v3/SearchPort?key=${KEY}&keyword=${encodeURIComponent(kw)}`);const d=await r.json();if(d.status===0&&d.data?.length){const p=d.data[0];el.innerHTML=`<div class="statc"><div class="v">${p.port_cnname||p.port_name}</div><div class="l">${p.port_code} | ${p.country_cn||p.country}</div></div>`;}else el.innerHTML='未找到';}catch(e){el.innerHTML='获取超时';}}
-
-// 工具
-function toggleAuto(){autoR=!autoR;document.getElementById('abtn').textContent=autoR?'⏸ 暂停':'▶ 开启';toast(autoR?'自动刷新已开启':'已暂停','o');}
-function toast(m,t){const el=document.createElement('div');el.className='toast '+t;el.textContent=m;document.getElementById('toasts').appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(60px)';el.style.transition='.3s';setTimeout(()=>el.remove(),300)},3000);}
-function showKeyPrompt(){document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#f5f6f8;font-family:Microsoft YaHei,sans-serif"><div style="background:#fff;padding:36px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.1);max-width:440px;text-align:center"><h1 style="color:#2563eb;font-size:20px;margin-bottom:6px">⚓ 船舶追踪系统</h1><p style="color:#4a5568;font-size:14px;margin-bottom:18px">请输入船讯网 API Key</p><input id="ki" placeholder="粘贴Key..." style="width:100%;padding:11px;border:2px solid #dde4ed;border-radius:8px;font-size:14px;text-align:center;outline:none;font-family:monospace" autofocus><br><button onclick="saveK()" style="margin-top:10px;width:100%;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer">💾 保存并开始</button><p style="margin-top:14px;font-size:11px;color:#8899aa">Key仅存储本地 | <a href="https://api.shipxy.com/v3/console/overview" target="_blank" style="color:#2563eb">获取Key</a></p></div></div>';}
-function saveK(){const v=document.getElementById('ki').value.trim();if(!v)return;localStorage.setItem('shipxy_api_key',v);location.reload();}
+function cls(){document.getElementById('md').classList.remove('s');}
 document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
